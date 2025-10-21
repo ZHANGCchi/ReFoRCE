@@ -60,10 +60,10 @@ class GPTChat(BaseChat):
         super().__init__(model, temperature)
 
         if not azure:
-            if model in ["o1-preview", "o1-mini"]:
+            if model in ["o1-preview", "o1-mini", "Qwen3-Coder-30B-A3B-Instruct"]:
                 self.client = OpenAI(
-                    api_key=os.environ.get("OPENAI_API_KEY"),
-                    api_version="2024-12-01-preview"
+                    base_url="http://10.210.1.23:10000/v1",
+                    api_key="empty",
                 )
             elif model in ["deepseek-reasoner"]:
                 self.client = OpenAI(
