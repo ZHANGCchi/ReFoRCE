@@ -175,6 +175,18 @@ class REFORCE:
 
         error_rec = []
         while itercount < args.max_iter:
+            # terminal progress: per-iteration start (stdout only)
+            try:
+                import time
+                ts = time.strftime('%Y-%m-%d %H:%M:%S')
+                print(f"[{ts}][PB][{self.sql_id}] iter: {itercount+1}/{args.max_iter} start", flush=True)
+            except Exception:
+                pass
+            # update context tag so lower-level prints carry iteration info
+            try:
+                self.chat_session.context_tag = f"{self.sql_id}/iter:{itercount+1}/{args.max_iter}"
+            except Exception:
+                pass
             logger.info(f"itercount: {itercount}")
             logger.info("[Self-refine]\n" + self_refine_prompt + "\n[Self-refine]")
             
@@ -190,10 +202,24 @@ class REFORCE:
                 if os.path.exists(csv_save_path):
                     os.remove(csv_save_path)
                 print(f"{self.sql_id}: Error when generating final SQL.")
+                try:
+                    import time
+                    ts = time.strftime('%Y-%m-%d %H:%M:%S')
+                    print(f"[{ts}][PB][{self.sql_id}] iter: {itercount+1}/{args.max_iter} no-sql exit", flush=True)
+                except Exception:
+                    pass
                 break
             logger.info("[Try to run SQL in self-refine]\n" +self.chat_session.messages[-1]['content'] + "\n[Try to run SQL in self-refine]")
             response = response[0]
             executed_result = self.sql_env.execute_sql_api(response, self.sql_id, csv_save_path, api=self.api, sqlite_path=self.sqlite_path)
+            # terminal progress: per-iteration result summary
+            try:
+                import time
+                ts = time.strftime('%Y-%m-%d %H:%M:%S')
+                status = 'ok' if executed_result == '0' else ('empty' if executed_result == self.empty_result else 'error')
+                print(f"[{ts}][PB][{self.sql_id}] iter: {itercount+1}/{args.max_iter} exec={status}", flush=True)
+            except Exception:
+                pass
             error_rec.append(str(executed_result))
             if args.early_stop and len(error_rec) > 3:
                 # Eraly stop for repeatitive empty results
@@ -201,18 +227,30 @@ class REFORCE:
                     logger.info("No data found for the specified query, remove file.")                    
                     if os.path.exists(csv_save_path):
                         os.remove(csv_save_path)
+                    try:
+                        import time
+                        ts = time.strftime('%Y-%m-%d %H:%M:%S')
+                        print(f"[{ts}][PB][{self.sql_id}] iter: {itercount+1}/{args.max_iter} early-stop (empty)", flush=True)
+                    except Exception:
+                        pass
                     break
             
             if executed_result == '0':
                 if not args.do_self_consistency:
                     with open(sql_save_path, "w") as f:
                         f.write(response)
+                    try:
+                        import time
+                        ts = time.strftime('%Y-%m-%d %H:%M:%S')
+                        print(f"[{ts}][PB][{self.sql_id}] iter: {itercount+1}/{args.max_iter} success", flush=True)
+                    except Exception:
+                        pass
                         break                    
                 self_consistency_prompt = self.prompt_class.get_self_consistency_prompt(question, format_csv)
                 with open(csv_save_path) as f:
                     csv_data = f.readlines()
                     csv_data_str = ''.join(csv_data)
-                logger.info(f"[Executed results in self-refine]\n{hard_cut(csv_data_str, self.csv_max_len)}\n[Executed results in self-refine]")
+                    logger.info(f"[Executed results in self-refine]\n{hard_cut(csv_data_str, self.csv_max_len)}\n[Executed results in self-refine]")
                 self_consistency_prompt += "Current snswer: \n" + hard_cut(csv_data_str, self.csv_max_len)
                 self_consistency_prompt += f"Current sql:\n{response}"
                 if '"""' in csv_data_str:

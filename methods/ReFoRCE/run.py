@@ -49,8 +49,18 @@ def execute(question, table_info, args, csv_save_path, log_save_path, sql_save_p
     chat_session = None
     if args.do_column_exploration:
         chat_session_ex = ChatClass(args.azure, args.column_exploration_model, temperature=args.temperature)
+        # attach context tag for clearer logs
+        try:
+            chat_session_ex.context_tag = f"{sql_data}/{log_save_path}"
+        except Exception:
+            pass
     if args.generation_model:
         chat_session = ChatClass(args.azure, args.generation_model, temperature=args.temperature)
+        # attach context tag for clearer logs
+        try:
+            chat_session.context_tag = f"{sql_data}/{log_save_path}"
+        except Exception:
+            pass
 
     # agent
     agent = REFORCE(args.db_path, sql_data, search_directory, prompt_all, sql_env, chat_session_ex, chat_session, sql_data+'/'+log_save_path, db_id, task=args.task)
@@ -155,6 +165,13 @@ def process_sql_data(sql_data):
         sql_paths = {}
         threads = []
 
+        # progress: per-sample votes progress in terminal (stdout)
+        try:
+            ts = time.strftime('%Y-%m-%d %H:%M:%S')
+            print(f"[{ts}][PB][{sql_data}] votes: 0/{num_votes}", flush=True)
+        except Exception:
+            pass
+
         for i in range(num_votes):
             csv_save_pathi = str(i) + agent_format.csv_save_name
             log_pathi = str(i) + agent_format.log_save_name
@@ -177,8 +194,15 @@ def process_sql_data(sql_data):
             thread.start()
 
         # wait
+        completed = 0
         for thread in threads:
             thread.join()
+            completed += 1
+            try:
+                ts = time.strftime('%Y-%m-%d %H:%M:%S')
+                print(f"[{ts}][PB][{sql_data}] votes: {completed}/{num_votes}", flush=True)
+            except Exception:
+                pass
         
         if args.revote:
             print(search_directory)
@@ -194,13 +218,28 @@ def process_sql_data(sql_data):
                 agent_format.vote_result(search_directory, args, sql_paths, table_info, question)
             else:
                 print(f"{sql_data}: Empty")
+        try:
+            ts = time.strftime('%Y-%m-%d %H:%M:%S')
+            print(f"[{ts}][PB][{sql_data}] votes: done", flush=True)
+        except Exception:
+            pass
     else:
         # Directly execute the task
+        try:
+            ts = time.strftime('%Y-%m-%d %H:%M:%S')
+            print(f"[{ts}][PB][{sql_data}] start", flush=True)
+        except Exception:
+            pass
         execute(
             question, table_info, args,
             agent_format.csv_save_name, agent_format.log_save_name, agent_format.sql_save_name,
             search_directory, format_csv, sql_data
         )
+        try:
+            ts = time.strftime('%Y-%m-%d %H:%M:%S')
+            print(f"[{ts}][PB][{sql_data}] done", flush=True)
+        except Exception:
+            pass
 
     print(f"Time for {sql_data}: {int((time.time() - start_time) // 60)} min")
 
