@@ -80,7 +80,7 @@ run_cmd "$LOG_DIR/03_schema_linking.log" \
 OUTPUT_PATH="output/${API}-${TASK}-log-${TIMESTAMP}"
 # OUTPUT_PATH="output/${API}-${TASK}-log"
 NUM_VOTES=8
-NUM_WORKERS=4
+NUM_WORKERS=12
 echo "AZURE mode: $AZURE"
 echo "Model: $API"
 echo "Task: $TASK"

@@ -31,6 +31,20 @@ def extract_all_blocks(main_content, code_format):
     
     return sql_blocks
 
+def get_rss_mb() -> int:
+    """Return current process resident set size in MB (Linux-only); -1 on failure."""
+    try:
+        with open("/proc/self/status", "r") as f:
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        kb = int(parts[1])  # value in kB
+                        return max(0, kb // 1024)
+    except Exception:
+        pass
+    return -1
+
 def hard_cut(str_e, length=0):
     if length:
         if len(str_e) > length:

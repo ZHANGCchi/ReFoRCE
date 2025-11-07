@@ -2,10 +2,10 @@ import sys
 import time
 import random
 from abc import ABC, abstractmethod
-from utils import extract_all_blocks
+from utils import extract_all_blocks, get_rss_mb
 
 class BaseChat(ABC):
-    def __init__(self, model: str, temperature: float = 0.6):
+    def __init__(self, model: str, temperature: float = 1.0):
         self.model = model
         self.temperature = float(temperature)
         self.messages = []
@@ -16,116 +16,32 @@ class BaseChat(ABC):
 
     def get_model_response(self, prompt, code_format=None) -> list:
         code_blocks = []
-        max_try = 6
-        attempt = 0
-        last_err = None
+        max_try = 3
         while code_blocks == [] and max_try > 0:
             max_try -= 1
-            attempt += 1
-            prev_len = len(self.messages)
             try:
                 response = self.get_response(prompt)
-                code_blocks = extract_all_blocks(response, code_format)
-                if code_blocks:
-                    break
-                # If response empty or failed to extract, treat as retryable
-                raise RuntimeError("empty_or_unparsable_response")
             except Exception as e:
-                # Rollback the last user message appended inside get_response on failure
-                if len(self.messages) > prev_len:
-                    self.messages = self.messages[:prev_len]
-                last_err = e
-                ctx = getattr(self, 'context_tag', '-')
-                ts = time.strftime('%Y-%m-%d %H:%M:%S')
-                print(f"[{ts}][PB][{ctx}] get_model_response exception, attempt: {attempt}, remaining: {max_try}, err: {e}")
-                # exponential backoff with jitter; longer for rate limit/server busy
-                msg = str(e).lower()
-                # early abort on non-retryable issues (context length / content overflow)
-                nonretry_kw = [
-                    "content overflow", "内容溢出", "最大输入token", "超出系统最大输入",
-                    "exceeds maximum context", "context length exceeded", "token limit", "10119"
-                ]
-                if any(k.lower() in msg for k in nonretry_kw):
-                    # don't waste retries on impossible-to-fix transiently
-                    raise
-                base = 1.0 if attempt <= 2 else 2.0
-                heavy_kw = [
-                    "rate limit", "429", "server busy", "timeout", "temporarily unavailable",
-                    "bad gateway", "gateway timeout", "connection reset", "proxy_error",
-                    "系统繁忙", "请稍后再试", "稍后再试", "服务繁忙", "服务不可用", "网关超时", "10005", "502", "503", "504"
-                ]
-                if any(k.lower() in msg for k in heavy_kw):
-                    base *= 2.0
-                sleep_s = min(30.0, base * (2 ** max(0, attempt - 1)) + random.uniform(0, 0.5))
-                try:
-                    time.sleep(sleep_s)
-                except Exception:
-                    pass
+                print(f"max_try: {max_try}, exception: {e}")
                 continue
-        # success summary print to help ordering
-        if code_blocks:
-            try:
-                ctx = getattr(self, 'context_tag', '-')
-                ts = time.strftime('%Y-%m-%d %H:%M:%S')
-                print(f"[{ts}][PB][{ctx}] get_model_response ok, blocks={len(code_blocks)}")
-            except Exception:
-                pass
-            return code_blocks
-        # failure summary and raise instead of exiting the whole process
-        ctx = getattr(self, 'context_tag', '-')
-        ts = time.strftime('%Y-%m-%d %H:%M:%S')
-        print(f"[{ts}][PB][{ctx}] get_model_response exhausted, last_err: {last_err}")
-        raise RuntimeError(f"get_model_response_failed: {last_err}")
+            code_blocks = extract_all_blocks(response, code_format)
+        if max_try == 0 or code_blocks == []:
+            print(f"get_model_response() exit, max_try: {max_try}, code_blocks: {code_blocks}")
+            sys.exit(0)
+        return code_blocks
 
     def get_model_response_txt(self, prompt) -> str:
-        max_try = 6
-        attempt = 0
-        last_err = None
+        max_try = 3
         while max_try > 0:
             max_try -= 1
-            attempt += 1
-            prev_len = len(self.messages)
             try:
                 response = self.get_response(prompt)
-                if not response:
-                    raise RuntimeError("empty_response")
                 return response
             except Exception as e:
-                # Rollback the last user message appended inside get_response on failure
-                if len(self.messages) > prev_len:
-                    self.messages = self.messages[:prev_len]
-                last_err = e
-                ctx = getattr(self, 'context_tag', '-')
-                ts = time.strftime('%Y-%m-%d %H:%M:%S')
-                print(f"[{ts}][PB][{ctx}] get_model_response_txt exception, attempt: {attempt}, remaining: {max_try}, err: {e}")
-                # exponential backoff with jitter
-                msg = str(e).lower()
-                # early abort on non-retryable issues
-                nonretry_kw = [
-                    "content overflow", "内容溢出", "最大输入token", "超出系统最大输入",
-                    "exceeds maximum context", "context length exceeded", "token limit", "10119"
-                ]
-                if any(k.lower() in msg for k in nonretry_kw):
-                    raise
-                base = 1.0 if attempt <= 2 else 2.0
-                heavy_kw = [
-                    "rate limit", "429", "server busy", "timeout", "temporarily unavailable",
-                    "bad gateway", "gateway timeout", "connection reset", "proxy_error",
-                    "系统繁忙", "请稍后再试", "稍后再试", "服务繁忙", "服务不可用", "网关超时", "10005", "502", "503", "504"
-                ]
-                if any(k.lower() in msg for k in heavy_kw):
-                    base *= 2.0
-                sleep_s = min(30.0, base * (2 ** max(0, attempt - 1)) + random.uniform(0, 0.5))
-                try:
-                    time.sleep(sleep_s)
-                except Exception:
-                    pass
+                print(f"max_try: {max_try}, exception: {e}")
                 continue
-        # failure summary
-        ctx = getattr(self, 'context_tag', '-')
-        ts = time.strftime('%Y-%m-%d %H:%M:%S')
-        print(f"[{ts}][PB][{ctx}] get_model_response_txt exhausted, last_err: {last_err}")
-        raise RuntimeError(f"get_model_response_txt_failed: {last_err}")
+        print(f"get_model_response_txt() exit, max_try: {max_try}")
+        sys.exit(0)
 
     def get_message_len(self):
         return {
@@ -150,10 +66,15 @@ class GPTChat(BaseChat):
         self.switch = False
 
         if not azure:
-            if model in ["o1-preview", "o1-mini", "Qwen3-Coder-30B-A3B-Instruct", "Qwen3-32B"]:
+            if model in ["o1-preview", "o1-mini", "Qwen3-Coder-30B-A3B-Instruct", "Qwen3-32B", "Qwen3-14B"]:
                 self.client = OpenAI(
                     base_url="http://app-a9f0de88ae8d476fb97a534637d556a8.ns-devsft-7784ec30.svc.cluster.local:9000/v1",
                     api_key="empty",
+                )
+            elif model in ["deepseek-reasoner"]:
+                self.client = OpenAI(
+                    base_url="https://api.deepseek.com",
+                    api_key=os.environ.get("DS_API_KEY"),
                 )
             elif model in ["deepseek-reasoner"]:
                 self.client = OpenAI(
@@ -207,7 +128,7 @@ class GPTChat(BaseChat):
             response = self.client.generate(
                 messages=self.messages,
                 model=self.model,
-                # channel_code=getattr(self, "channel_code", "doubao"),
+                channel_code=getattr(self, "channel_code", "doubao"),
                 transaction_id=self.transaction_id,
                 temperature=self.temperature,
             )
@@ -259,7 +180,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Quick test entry for GPTChat")
-    parser.add_argument("--model", type=str, default="gpt-4o-2024-11-20", help="Model name, e.g., Qwen3-32B, Qwen3-Coder-30B-A3B-Instruct, o1-mini, gpt-4o")
+    parser.add_argument("--model", type=str, default="doubao-seed-1.6-250615", help="Model name, e.g., Qwen3-32B, Qwen3-Coder-30B-A3B-Instruct, o1-mini, gpt-4o")
     parser.add_argument("--azure", action="store_true", help="Use Azure OpenAI endpoint")
     parser.add_argument("--temperature", type=float, default=1.0, help="Sampling temperature")
     parser.add_argument("--prompt", type=str, default="请做个自我介绍", help="Prompt text to send")

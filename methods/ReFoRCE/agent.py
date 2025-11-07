@@ -251,7 +251,7 @@ class REFORCE:
                     csv_data = f.readlines()
                     csv_data_str = ''.join(csv_data)
                     logger.info(f"[Executed results in self-refine]\n{hard_cut(csv_data_str, self.csv_max_len)}\n[Executed results in self-refine]")
-                self_consistency_prompt += "Current snswer: \n" + hard_cut(csv_data_str, self.csv_max_len)
+                self_consistency_prompt += "Current answer: \n" + hard_cut(csv_data_str, self.csv_max_len)
                 self_consistency_prompt += f"Current sql:\n{response}"
                 if '"""' in csv_data_str:
                     self_consistency_prompt += 'Please remove """ in results. Use CAST: CAST(column_name AS STRING).\n'

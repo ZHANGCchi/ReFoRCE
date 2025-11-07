@@ -22,3 +22,5 @@ methods/ReFoRCE/output/
 # vscode
 .vscode/
 reforce/
+data/spider/
+__MACOSX/

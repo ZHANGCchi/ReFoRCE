@@ -111,6 +111,24 @@ def evaluate_spider2sql(gold_result_dir, csv_pth, example_id, task="lite"):
         score = 0
     return score
 
+def evaluate_spider(gold_result_dir, csv_pth, example_id, task=None):
+    """Evaluate Spider 1.0 by exact set equality of CSV rows.
+
+    This mirrors evaluate_bird's simple tuple-set comparison and is suitable
+    when gold CSVs are provided under data/spider/gold_result.
+    """
+    try:
+        with open(os.path.join(gold_result_dir, example_id+".csv")) as f:
+            gold_csv = f.read()
+        with open(os.path.join(csv_pth)) as f:
+            exec_result = f.read()
+        if set(get_tuple(exec_result)) == set(get_tuple(gold_csv)):
+            return 1
+        return 0
+    except Exception as e:
+        print(f"{example_id} ERROR: {e}")
+    return 0
+
 def get_tuple(csv_str):
     f = StringIO(csv_str)
     reader = csv.reader(f)
@@ -148,13 +166,20 @@ def update_results(gold_result_dir):
             result = sql_env.execute_sql_api(sql_query, sql.replace(".sql", ""), save_pth, api, sqlite_path=sqlite_path)
             print(sql, result)            
 
-def evaluate_passk(pth, task, update_res=False):
-    eval_func = [evaluate_spider2sql]
+def evaluate_passk(pth, task, update_res=False, gold_result_dir_override: str | None = None):
+    eval_func = []
+    # choose gold dir and evaluation function(s)
     if task == "BIRD":
-        gold_result_dir = "../../data/BIRD/gold_result"
-        eval_func.append(evaluate_bird)
+        gold_result_dir = gold_result_dir_override or "../../data/BIRD/gold_result"
+        eval_func = [evaluate_bird]
+    elif task == "spider":
+        # Default spider1.0 gold location
+        gold_result_dir = gold_result_dir_override or "../../data/spider/gold_result"
+        eval_func = [evaluate_spider]
     else:
-        gold_result_dir = f"../../spider2-{task}/evaluation_suite/gold/exec_result"
+        # snow | lite -> spider2 evaluation suite
+        gold_result_dir = gold_result_dir_override or f"../../spider2-{task}/evaluation_suite/gold/exec_result"
+        eval_func = [evaluate_spider2sql]
     if update_res:
         update_results(gold_result_dir)
     final_score = {}
@@ -186,10 +211,11 @@ def evaluate_passk(pth, task, update_res=False):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Setup for Spider 2.0")
-    parser.add_argument("--log_folder", default=None, type=str)
-    parser.add_argument("--task", type=str, default=None)
-    parser.add_argument("--update_res", action="store_true")
+    parser = argparse.ArgumentParser(description="Evaluate ReFoRCE outputs")
+    parser.add_argument("--log_folder", default=None, type=str, help="Path to run outputs (folders per example)")
+    parser.add_argument("--task", type=str, default=None, choices=["snow", "lite", "BIRD", "spider"], help="Task name")
+    parser.add_argument("--update_res", action="store_true", help="Recompute gold exec_result from gold SQL when applicable")
+    parser.add_argument("--gold_result_dir", type=str, default=None, help="Override gold result directory (optional)")
 
     args = parser.parse_args()
-    evaluate_passk(args.log_folder, args.task, args.update_res)
+    evaluate_passk(args.log_folder, args.task, args.update_res, args.gold_result_dir)

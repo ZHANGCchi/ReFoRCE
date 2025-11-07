@@ -118,8 +118,13 @@ class Prompts:
                     question = question
                 )
             elif task in ["BIRD", "spider"]:
-                ce = "Some few-shot examples after column exploration may be helpful:\n" + pre_info if pre_info else ""
-                return table_info + "\n" + ce
+                # ce = "Some few-shot examples after column exploration may be helpful:\n" + pre_info if pre_info else ""
+                # return table_info + "\n" + ce
+                return omni_sql_input_prompt_template.format(
+                    db_engine = "SQLite",
+                    db_details = table_info,
+                    question = question
+                )
         refine_prompt = table_info + "\n"
         # refine_prompt += "Begin Exploring Related Columns\n" + response_pre_txt + "\nRefined SQLs and results:\n" + pre_info + "End Exploring Related Columns\n" if pre_info else ""
         refine_prompt += "Some few-shot examples after column exploration may be helpful:\n" + pre_info if pre_info else ""

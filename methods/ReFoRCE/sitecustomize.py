@@ -43,7 +43,7 @@ if os.environ.get("REFORCE_DEBUG_MODEL_RAW") == "1":
                     print(f"[{ts}][PB][{ctx}] get_model_response exception, max_try: {max_try}, err: {e}")
                     continue
                 code_blocks = extract_all_blocks(response, code_format)
-            # Preserve original exit behavior, but print the raw assistant content for debugging
+            # On failure, print raw content for debugging. By default exits, but can be toggled off.
             if max_try == 0 or code_blocks == []:
                 import time
                 ctx = getattr(self, 'context_tag', '-')
@@ -61,7 +61,10 @@ if os.environ.get("REFORCE_DEBUG_MODEL_RAW") == "1":
                     print("<no response captured>")
                 print(f"[{ts}][PB][{ctx}] [DEBUG get_model_response raw assistant content end]")
                 print(f"[{ts}][PB][{ctx}] get_model_response exit, max_try: {max_try}, code_blocks: {code_blocks}")
-                sys.exit(0)
+                # Allow opting out of process exit for debugging sessions
+                # if os.environ.get("REFORCE_DEBUG_EXIT_ON_FAIL", "1") == "1":
+                #     sys.exit(0)
+                return []
             return code_blocks
 
         # Apply monkey patch
